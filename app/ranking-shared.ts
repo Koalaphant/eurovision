@@ -35,10 +35,10 @@ export type PublicConfig = {
 export const storageKey = "eurovision-ranking-game";
 
 export const criteria: Criterion[] = [
-  { id: "vocalsSoundCatchiness", label: "Vocals/Sound/Catchiness" },
-  { id: "stagingCostumesProps", label: "Staging/Costumes/Props" },
-  { id: "choreographyPerformancePresence", label: "Choreography/Performance/Stage Presence" },
-  { id: "wowEnergyImpact", label: "Wow factor/energy/impact" },
+  { id: "vocalsSoundCatchiness", label: "Vocals / Sound / Catchiness" },
+  { id: "stagingCostumesProps", label: "Staging / Costumes / Props" },
+  { id: "choreographyPerformancePresence", label: "Choreography / Performance / Stage Presence" },
+  { id: "wowEnergyImpact", label: "Wow factor /Energy / Impact" },
 ];
 
 export const scoreOptions = Array.from({ length: 21 }, (_, index) => index * 0.5);
