@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EurovisionRanking {
+  userId      String   @id @map("user_id") @db.Uuid
+  gameId      String?  @map("game_id")
+  displayName String?  @map("display_name")
+  songs       Json     @default("[]")
+  criteria    Json     @default("[]")
+  ratings     Json     @default("{}")
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  game        EurovisionGame? @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@map("eurovision_rankings")
+}
+
+model EurovisionGame {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  createdBy   String   @map("created_by") @db.Uuid
+  status      String   @default("open")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  members     EurovisionGameMember[]
+  rankings    EurovisionRanking[]
+  gameRankings EurovisionGameRanking[]
+
+  @@map("eurovision_games")
+}
+
+model EurovisionGameRanking {
+  id          String         @id @default(cuid())
+  userId      String         @map("user_id") @db.Uuid
+  gameId      String         @map("game_id")
+  displayName String?        @map("display_name")
+  ratings     Json           @default("{}")
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  game        EurovisionGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([gameId])
+  @@map("eurovision_game_rankings")
+}
+
+model EurovisionGameMember {
+  userId    String         @id @map("user_id") @db.Uuid
+  gameId    String         @map("game_id")
+  email     String
+  joinedAt  DateTime       @default(now()) @map("joined_at") @db.Timestamptz(6)
+  game      EurovisionGame @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@index([gameId])
+  @@map("eurovision_game_members")
+}
+
+model EurovisionEntry {
+  id          String   @id @default(cuid())
+  country     String
+  countryCode String   @map("country_code")
+  artist      String
+  songTitle   String   @map("song_title")
+  flagUrl     String   @map("flag_url")
+  sortOrder   Int      @default(0) @map("sort_order")
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("eurovision_entries")
+}
