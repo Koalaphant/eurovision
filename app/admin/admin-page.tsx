@@ -179,6 +179,7 @@ export function AdminPage() {
     setUser(null);
     setIsAdmin(false);
     setGame(null);
+    setEntries([]);
   }
 
   async function createGameCode() {
@@ -206,6 +207,7 @@ export function AdminPage() {
 
     setGame(data.game);
     setIsAdmin(data.game.isAdmin);
+    setEntries([]);
     setNewCode("");
     setMessage(`Game code ${data.game.code} created.`);
   }

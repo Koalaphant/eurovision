@@ -179,3 +179,38 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ game: { id: game.id, code: game.code, status: game.status, isAdmin: true } });
 }
+
+export async function DELETE(request: Request) {
+  const user = await getAuthenticatedUser(request);
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const membership = await prisma.eurovisionGameMember.findUnique({
+    where: { userId: user.id },
+    include: { game: true },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ ok: true });
+  }
+
+  if (membership.game.createdBy === user.id) {
+    return NextResponse.json({ error: "The game admin cannot leave their own game. Close it or start a new game instead." }, { status: 400 });
+  }
+
+  await prisma.$transaction([
+    prisma.eurovisionGameRanking.deleteMany({
+      where: {
+        userId: user.id,
+        gameId: membership.gameId,
+      },
+    }),
+    prisma.eurovisionGameMember.delete({
+      where: { userId: user.id },
+    }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}

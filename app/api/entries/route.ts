@@ -16,35 +16,52 @@ type ReorderPayload = {
   entryIds: string[];
 };
 
-async function isGameAdmin(userId: string | undefined, requireOpen = false) {
+async function getCurrentMembership(userId: string | undefined) {
   if (!userId) {
-    return false;
+    return null;
   }
 
-  const game = await prisma.eurovisionGame.findFirst({
-    where: { createdBy: userId, ...(requireOpen ? { status: "open" } : {}) },
-    select: { id: true },
+  return prisma.eurovisionGameMember.findUnique({
+    where: { userId },
+    include: { game: true },
   });
+}
 
-  return Boolean(game);
+function isCurrentGameAdmin(membership: Awaited<ReturnType<typeof getCurrentMembership>>) {
+  return Boolean(membership && membership.game.createdBy === membership.userId);
+}
+
+function isOpenCurrentGameAdmin(membership: Awaited<ReturnType<typeof getCurrentMembership>>) {
+  return isCurrentGameAdmin(membership) && membership?.game.status === "open";
 }
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser(request);
+  const membership = await getCurrentMembership(user?.id);
+
+  if (!membership) {
+    return NextResponse.json({
+      entries: [],
+      isAdmin: false,
+    });
+  }
+
   const entries = await prisma.eurovisionEntry.findMany({
+    where: { gameId: membership.gameId },
     orderBy: [{ sortOrder: "asc" }, { country: "asc" }],
   });
 
   return NextResponse.json({
     entries,
-    isAdmin: await isGameAdmin(user?.id),
+    isAdmin: isCurrentGameAdmin(membership),
   });
 }
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser(request);
+  const membership = await getCurrentMembership(user?.id);
 
-  if (!(await isGameAdmin(user?.id, true))) {
+  if (!membership || !isOpenCurrentGameAdmin(membership)) {
     return NextResponse.json({ error: "Only an admin with an open game can add countries." }, { status: 403 });
   }
 
@@ -54,9 +71,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Country, artist, song, and flag are required." }, { status: 400 });
   }
 
-  const count = await prisma.eurovisionEntry.count();
+  const count = await prisma.eurovisionEntry.count({
+    where: { gameId: membership.gameId },
+  });
   const entry = await prisma.eurovisionEntry.create({
     data: {
+      gameId: membership.gameId,
       country: payload.country.trim(),
       countryCode: payload.countryCode.toUpperCase(),
       artist: payload.artist.trim(),
@@ -71,8 +91,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const user = await getAuthenticatedUser(request);
+  const membership = await getCurrentMembership(user?.id);
 
-  if (!(await isGameAdmin(user?.id, true))) {
+  if (!membership || !isOpenCurrentGameAdmin(membership)) {
     return NextResponse.json({ error: "Only an admin with an open game can rearrange songs." }, { status: 403 });
   }
 
@@ -82,8 +103,21 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "entryIds must be an array." }, { status: 400 });
   }
 
+  const uniqueEntryIds = [...new Set(payload.entryIds)];
+  const entries = await prisma.eurovisionEntry.findMany({
+    where: {
+      id: { in: uniqueEntryIds },
+      gameId: membership.gameId,
+    },
+    select: { id: true },
+  });
+
+  if (entries.length !== uniqueEntryIds.length) {
+    return NextResponse.json({ error: "Entry order can only include songs from this game." }, { status: 400 });
+  }
+
   await prisma.$transaction(
-    payload.entryIds.map((id, index) =>
+    uniqueEntryIds.map((id, index) =>
       prisma.eurovisionEntry.update({
         where: { id },
         data: { sortOrder: index },
@@ -96,8 +130,9 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   const user = await getAuthenticatedUser(request);
+  const membership = await getCurrentMembership(user?.id);
 
-  if (!(await isGameAdmin(user?.id, true))) {
+  if (!membership || !isOpenCurrentGameAdmin(membership)) {
     return NextResponse.json({ error: "Only an admin with an open game can delete songs." }, { status: 403 });
   }
 
@@ -108,11 +143,16 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Entry id is required." }, { status: 400 });
   }
 
-  await prisma.eurovisionEntry.delete({
-    where: { id },
+  const deleted = await prisma.eurovisionEntry.deleteMany({
+    where: { id, gameId: membership.gameId },
   });
 
+  if (!deleted.count) {
+    return NextResponse.json({ error: "Song not found in this game." }, { status: 404 });
+  }
+
   const entries = await prisma.eurovisionEntry.findMany({
+    where: { gameId: membership.gameId },
     orderBy: [{ sortOrder: "asc" }, { country: "asc" }],
   });
 

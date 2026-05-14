@@ -26,7 +26,10 @@ export async function GET(request: Request) {
   }
 
   const [entries, currentRanking, rankings] = await Promise.all([
-    prisma.eurovisionEntry.findMany({ orderBy: [{ sortOrder: "asc" }, { country: "asc" }] }),
+    prisma.eurovisionEntry.findMany({
+      where: { gameId: membership.gameId },
+      orderBy: [{ sortOrder: "asc" }, { country: "asc" }],
+    }),
     prisma.eurovisionGameRanking.findUnique({ where: { userId_gameId: { userId, gameId: membership.gameId } } }),
     prisma.eurovisionGameRanking.findMany({
       where: { gameId: membership.gameId },

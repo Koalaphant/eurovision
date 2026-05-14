@@ -103,7 +103,7 @@ export function RankingGame() {
         })
         .catch(() => undefined);
     });
-  }, [getAccessToken, user]);
+  }, [getAccessToken, user, game?.id]);
 
   useEffect(() => {
     if (!user) {
@@ -162,7 +162,7 @@ export function RankingGame() {
           setSaveMessage("Could not load saved ranking.");
         });
     });
-  }, [getAccessToken, supabase, user]);
+  }, [game?.id, getAccessToken, supabase, user]);
 
   async function signIn() {
     if (!supabase) {
@@ -196,6 +196,7 @@ export function RankingGame() {
     setUser(null);
     setIsAdmin(false);
     setGame(null);
+    setEntries([]);
   }
 
   async function saveRanking(successMessage = "Saved.") {
@@ -266,8 +267,45 @@ export function RankingGame() {
     }
 
     setGame(data.game);
+    setIsAdmin(data.game.isAdmin);
     setJoinCode("");
     setSaveMessage(`Joined game ${data.game.code}.`);
+  }
+
+  async function leaveGame() {
+    if (!user || !game) {
+      return;
+    }
+
+    if (!confirm("Leave this game? Your saved scores for this game will be removed from comparisons.")) {
+      return;
+    }
+
+    const token = await getAccessToken();
+
+    if (!token) {
+      setSaveMessage("Your session expired. Sign in again to leave this game.");
+      return;
+    }
+
+    const response = await fetch("/api/game", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = (await response.json()) as { error?: string };
+
+    if (!response.ok) {
+      setSaveMessage(data.error ?? "Could not leave game.");
+      return;
+    }
+
+    setGame(null);
+    setIsAdmin(false);
+    setEntries([]);
+    setRatings({});
+    setSaveMessage("You left the game. Enter a new code to join another one.");
   }
 
   function updateRating(entryId: string, criterionId: string, score: number) {
@@ -329,6 +367,11 @@ export function RankingGame() {
                     <Link className="h-10 rounded-md border border-white/30 px-4 py-2 text-sm font-semibold text-white" href="/compare">
                       Compare
                     </Link>
+                    {!game.isAdmin && (
+                      <button className="h-10 rounded-md border border-white/30 px-4 text-sm font-semibold text-white" onClick={leaveGame}>
+                        Leave
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -434,21 +477,23 @@ export function RankingGame() {
             <div className="mt-4 space-y-4 lg:hidden">
               {entries.map((entry, index) => (
                 <div className="rounded-lg border border-[#ff007f]/20 bg-white/80 p-4" key={entry.id}>
-                  <div className="flex items-start gap-3">
-                    <span className="euro-number flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold">
-                      {index + 1}
-                    </span>
-                    <Image alt="" className="h-9 w-14 rounded-sm object-cover" height={36} src={entry.flagUrl} width={56} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{entry.country}</p>
-                      <p className="mt-1 text-sm text-black/65">
-                        {entry.artist} - {entry.songTitle}
-                      </p>
+                  <div className="grid gap-3">
+                    <div className="flex items-start gap-3">
+                      <span className="euro-number flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-semibold">
+                        {index + 1}
+                      </span>
+                      <Image alt="" className="h-9 w-14 shrink-0 rounded-sm object-cover" height={36} src={entry.flagUrl} width={56} />
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words font-semibold">{entry.country}</p>
+                      </div>
+                      <div className="euro-total shrink-0 rounded-md px-3 py-2 text-right text-white">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/60">Total</p>
+                        <p className="text-lg font-semibold">{getEntryTotal(entry, ratings)}</p>
+                      </div>
                     </div>
-                    <div className="euro-total rounded-md px-3 py-2 text-right text-white">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/60">Total</p>
-                      <p className="text-lg font-semibold">{getEntryTotal(entry, ratings)}</p>
-                    </div>
+                    <p className="break-words text-sm leading-5 text-black/65">
+                      {entry.artist} - {entry.songTitle}
+                    </p>
                   </div>
                   <div className="mt-4 grid gap-3">
                     {criteria.map((criterionItem) => (
@@ -562,16 +607,20 @@ export function RankingGame() {
           <h2 className="text-lg font-semibold">Leaderboard</h2>
           <div className="mt-4 space-y-3">
             {leaderboard.map((entry, index) => (
-              <div className="grid grid-cols-[28px_36px_minmax(0,1fr)_48px] items-center gap-2 border-b border-black/10 pb-3 last:border-0 sm:grid-cols-[32px_40px_minmax(0,1fr)_56px] sm:gap-3" key={entry.id}>
+              <div className="grid grid-cols-[28px_minmax(0,1fr)_48px] items-start gap-2 border-b border-black/10 pb-3 last:border-0 sm:grid-cols-[32px_minmax(0,1fr)_56px] sm:gap-3" key={entry.id}>
                 <span className="euro-number flex h-8 w-8 items-center justify-center rounded-md text-sm font-semibold">
                   {index + 1}
                 </span>
-                <Image alt="" className="h-7 w-10 rounded-sm object-cover" height={28} src={entry.flagUrl} width={40} />
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">
-                    {entries.findIndex((orderedEntry) => orderedEntry.id === entry.id) + 1}. {entry.country}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Image alt="" className="h-7 w-10 shrink-0 rounded-sm object-cover" height={28} src={entry.flagUrl} width={40} />
+                    <p className="min-w-0 truncate font-semibold">
+                      {entries.findIndex((orderedEntry) => orderedEntry.id === entry.id) + 1}. {entry.country}
+                    </p>
+                  </div>
+                  <p className="mt-2 break-words text-sm leading-5 text-black/60">
+                    {entry.artist} - {entry.songTitle}
                   </p>
-                  <p className="truncate text-sm text-black/60">{entry.songTitle}</p>
                 </div>
                 <p className="text-right text-xl font-semibold">{getEntryTotal(entry, ratings)}</p>
               </div>
