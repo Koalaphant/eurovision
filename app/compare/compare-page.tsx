@@ -173,28 +173,28 @@ export function ComparePage() {
                 )}
               </>
             ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="h-10 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#7bd7c4]"
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="email@example.com"
-                  type="email"
-                  value={email}
-                />
-                <input
-                  className="h-10 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#7bd7c4]"
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Password"
-                  type="password"
-                  value={password}
-                />
-                <button className="euro-button-gold h-10 rounded-md px-4 text-sm font-semibold" onClick={signIn}>
-                  Sign in
-                </button>
-                <button className="h-10 rounded-md border border-white/30 px-4 text-sm font-semibold text-white" onClick={signUp}>
-                  Create
-                </button>
-              </div>
+	              <div className="flex flex-col gap-3 sm:flex-row">
+	                <input
+	                  className="h-12 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-4 text-base text-[#171717] outline-none focus:border-[#7bd7c4]"
+	                  onChange={(event) => setEmail(event.target.value)}
+	                  placeholder="email@example.com"
+	                  type="email"
+	                  value={email}
+	                />
+	                <input
+	                  className="h-12 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-4 text-base text-[#171717] outline-none focus:border-[#7bd7c4]"
+	                  onChange={(event) => setPassword(event.target.value)}
+	                  placeholder="Password"
+	                  type="password"
+	                  value={password}
+	                />
+	                <button className="euro-button-gold h-12 rounded-md px-5 text-base font-semibold" onClick={signIn}>
+	                  Sign in
+	                </button>
+	                <button className="h-12 rounded-md border border-white/30 px-5 text-base font-semibold text-white" onClick={signUp}>
+	                  Create
+	                </button>
+	              </div>
             )}
             {message && <p className="text-sm text-white/75">{message}</p>}
             {configLoaded && !supabase && <p className="text-sm text-white/60">Offline mode. Add Supabase env vars for account sync.</p>}

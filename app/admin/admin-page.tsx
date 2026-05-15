@@ -13,6 +13,16 @@ type Game = {
   isAdmin: boolean;
 };
 
+type SuperAdminUser = {
+  id: string;
+  email: string;
+  createdAt: string;
+  lastSignInAt: string | null;
+  isCurrentUser: boolean;
+};
+
+const superAdminEmail = "andrew.wardjones@icloud.com";
+
 export function AdminPage() {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -28,8 +38,11 @@ export function AdminPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState("");
   const [artist, setArtist] = useState("");
   const [songTitle, setSongTitle] = useState("");
+  const [superAdminUsers, setSuperAdminUsers] = useState<SuperAdminUser[]>([]);
+  const [superAdminMessage, setSuperAdminMessage] = useState("");
 
   const selectedCountry = countries.find((country) => country.cca2 === selectedCountryCode);
+  const isSuperAdmin = user?.email?.toLowerCase() === superAdminEmail;
 
   useEffect(() => {
     fetch("/api/config", { cache: "no-store" })
@@ -180,6 +193,86 @@ export function AdminPage() {
     setIsAdmin(false);
     setGame(null);
     setEntries([]);
+    setSuperAdminUsers([]);
+    setSuperAdminMessage("");
+  }
+
+  async function loadSuperAdminUsers() {
+    const token = await getAccessToken();
+
+    if (!token) {
+      setSuperAdminMessage("Sign in as the super admin to manage users.");
+      return;
+    }
+
+    const response = await fetch("/api/super-admin/users", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = (await response.json()) as { users?: SuperAdminUser[]; error?: string };
+
+    if (!response.ok || !data.users) {
+      setSuperAdminMessage(data.error ?? "Could not load users.");
+      return;
+    }
+
+    setSuperAdminUsers(data.users);
+    setSuperAdminMessage(`${data.users.length} user${data.users.length === 1 ? "" : "s"} loaded.`);
+  }
+
+  async function resetUserPassword(userId: string, targetEmail: string) {
+    if (!confirm(`Reset ${targetEmail || "this user"}'s password to "eurovision"?`)) {
+      return;
+    }
+
+    const token = await getAccessToken();
+
+    if (!token) {
+      setSuperAdminMessage("Sign in as the super admin to reset passwords.");
+      return;
+    }
+
+    const response = await fetch("/api/super-admin/users", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId }),
+    });
+    const data = (await response.json()) as { error?: string };
+
+    setSuperAdminMessage(response.ok ? `Password reset for ${targetEmail || "user"}.` : data.error ?? "Could not reset password.");
+  }
+
+  async function deleteUserAccount(userId: string, targetEmail: string) {
+    if (!confirm(`Delete ${targetEmail || "this user"}? This removes their auth account and app data.`)) {
+      return;
+    }
+
+    const token = await getAccessToken();
+
+    if (!token) {
+      setSuperAdminMessage("Sign in as the super admin to delete users.");
+      return;
+    }
+
+    const response = await fetch(`/api/super-admin/users?userId=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = (await response.json()) as { error?: string };
+
+    if (!response.ok) {
+      setSuperAdminMessage(data.error ?? "Could not delete user.");
+      return;
+    }
+
+    setSuperAdminUsers((current) => current.filter((listedUser) => listedUser.id !== userId));
+    setSuperAdminMessage(`${targetEmail || "User"} deleted.`);
   }
 
   async function createGameCode() {
@@ -381,28 +474,28 @@ export function AdminPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="h-10 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#7bd7c4]"
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="admin@example.com"
-                  type="email"
-                  value={email}
-                />
-                <input
-                  className="h-10 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-3 text-sm text-[#171717] outline-none focus:border-[#7bd7c4]"
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Password"
-                  type="password"
-                  value={password}
-                />
-                <button className="euro-button-gold h-10 rounded-md px-4 text-sm font-semibold" onClick={signIn}>
-                  Sign in
-                </button>
-                <button className="h-10 rounded-md border border-white/30 px-4 text-sm font-semibold text-white" onClick={signUp}>
-                  Create
-                </button>
-              </div>
+	              <div className="flex flex-col gap-3 sm:flex-row">
+	                <input
+	                  className="h-12 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-4 text-base text-[#171717] outline-none focus:border-[#7bd7c4]"
+	                  onChange={(event) => setEmail(event.target.value)}
+	                  placeholder="admin@example.com"
+	                  type="email"
+	                  value={email}
+	                />
+	                <input
+	                  className="h-12 min-w-0 flex-1 rounded-md border border-white/20 bg-white px-4 text-base text-[#171717] outline-none focus:border-[#7bd7c4]"
+	                  onChange={(event) => setPassword(event.target.value)}
+	                  placeholder="Password"
+	                  type="password"
+	                  value={password}
+	                />
+	                <button className="euro-button-gold h-12 rounded-md px-5 text-base font-semibold" onClick={signIn}>
+	                  Sign in
+	                </button>
+	                <button className="h-12 rounded-md border border-white/30 px-5 text-base font-semibold text-white" onClick={signUp}>
+	                  Create
+	                </button>
+	              </div>
             )}
             {message && <p className="text-sm text-white/75">{message}</p>}
             {configLoaded && !supabase && <p className="text-sm text-white/60">Offline mode. Add Supabase env vars for account sync.</p>}
@@ -415,6 +508,87 @@ export function AdminPage() {
           <div className="euro-card rounded-lg p-4">
             <h2 className="text-lg font-semibold">Create a game</h2>
             <p className="mt-2 text-sm text-black/60">Create a game code to become the admin for this Eurovision room.</p>
+          </div>
+        )}
+
+        {isSuperAdmin && (
+          <div className="euro-card rounded-lg p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Super admin</h2>
+                <p className="mt-2 text-sm text-black/60">View signed-up users, reset passwords, or delete accounts.</p>
+              </div>
+              <button className="euro-button-primary h-11 rounded-md px-4 text-sm font-semibold" onClick={loadSuperAdminUsers}>
+                Load users
+              </button>
+            </div>
+            {superAdminMessage && <p className="mt-3 text-sm text-black/60">{superAdminMessage}</p>}
+            {!!superAdminUsers.length && (
+              <>
+                <div className="mt-5 space-y-3 md:hidden">
+                  {superAdminUsers.map((listedUser) => (
+                    <div className="rounded-lg border border-[#ff007f]/20 bg-white/80 p-3" key={listedUser.id}>
+                      <p className="break-words font-semibold">{listedUser.email || "No email"}</p>
+                      <p className="mt-1 text-xs text-black/55">Created {new Date(listedUser.createdAt).toLocaleDateString()}</p>
+                      <p className="mt-1 text-xs text-black/55">
+                        Last sign in {listedUser.lastSignInAt ? new Date(listedUser.lastSignInAt).toLocaleDateString() : "never"}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button className="h-10 rounded-md border border-black/15 px-3 text-sm font-medium" onClick={() => resetUserPassword(listedUser.id, listedUser.email)}>
+                          Reset
+                        </button>
+                        <button
+                          className="euro-button-danger h-10 rounded-md px-3 text-sm font-semibold disabled:opacity-40"
+                          disabled={listedUser.isCurrentUser}
+                          onClick={() => deleteUserAccount(listedUser.id, listedUser.email)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-black/10 text-xs uppercase tracking-[0.12em] text-black/55">
+                        <th className="py-3 pr-4">Email</th>
+                        <th className="px-2 py-3">Created</th>
+                        <th className="px-2 py-3">Last sign in</th>
+                        <th className="py-3 pl-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {superAdminUsers.map((listedUser) => (
+                        <tr className="border-b border-black/10 last:border-0" key={listedUser.id}>
+                          <td className="py-3 pr-4">
+                            <p className="break-all font-medium">{listedUser.email || "No email"}</p>
+                          </td>
+                          <td className="px-2 py-3 text-black/60">{new Date(listedUser.createdAt).toLocaleDateString()}</td>
+                          <td className="px-2 py-3 text-black/60">
+                            {listedUser.lastSignInAt ? new Date(listedUser.lastSignInAt).toLocaleDateString() : "Never"}
+                          </td>
+                          <td className="py-3 pl-4">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button className="h-9 rounded-md border border-black/15 px-3 text-sm font-medium" onClick={() => resetUserPassword(listedUser.id, listedUser.email)}>
+                                Reset password
+                              </button>
+                              <button
+                                className="euro-button-danger h-9 rounded-md px-3 text-sm font-semibold disabled:opacity-40"
+                                disabled={listedUser.isCurrentUser}
+                                onClick={() => deleteUserAccount(listedUser.id, listedUser.email)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
 
